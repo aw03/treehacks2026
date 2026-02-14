@@ -1,22 +1,14 @@
+// app/api/health/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // simple query to verify DB connectivity
     await prisma.$queryRaw`SELECT 1`;
-
-    return NextResponse.json({
-      status: "ok",
-      database: "connected",
-    });
-  } catch (error: any) {
+    return NextResponse.json({ ok: true, db: "connected" });
+  } catch (e: any) {
     return NextResponse.json(
-      {
-        status: "error",
-        database: "not connected",
-        message: error.message,
-      },
+      { ok: false, db: "error", error: e?.message ?? "unknown" },
       { status: 500 }
     );
   }

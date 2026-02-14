@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-
 }
 
 datasource db {
@@ -14,15 +13,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
 
-  clients       Client[]
-  services      Service[]
-  appointments  Appointment[]
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients      Client[]
+  services     Service[]
+  appointments Appointment[]
+  supplies     SupplyItem[]
 }
 
 model Client {
@@ -32,40 +41,74 @@ model Client {
   email     String?
   notes     String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  userId String
-  user   User @relation(fields: [userId], references: [id])
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
 
   appointments Appointment[]
+
+  @@index([businessId])
+  // Optional uniqueness (only if you want)
+  // @@unique([businessId, phone])
+  // @@unique([businessId, email])
 }
 
 model Service {
   id          String   @id @default(uuid())
   name        String
-  price       Float
+  price       Decimal  @db.Decimal(10, 2)
   durationMin Int
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  userId String
-  user   User @relation(fields: [userId], references: [id])
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
 
   appointments Appointment[]
+
+  @@index([businessId])
 }
 
 model Appointment {
-  id        String   @id @default(uuid())
-  startTime DateTime
-  endTime   DateTime
-  status    String   @default("scheduled")
-  notes     String?
-  createdAt DateTime @default(now())
+  id          String            @id @default(uuid())
+  startTime   DateTime
+  endTime     DateTime
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  // Keeps historical accuracy if service price changes:
+  priceAtBooking Decimal? @db.Decimal(10, 2)
 
-  userId String
-  user   User @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id])
 
   serviceId String
   service   Service @relation(fields: [serviceId], references: [id])
+
+  @@index([businessId, startTime])
+  @@index([clientId])
+  @@index([serviceId])
+}
+
+model SupplyItem {
+  id          String   @id @default(uuid())
+  name        String
+  unit        String?  // e.g., "ml", "oz", "pieces"
+  quantity    Decimal  @db.Decimal(10, 2)
+  reorderAt   Decimal? @db.Decimal(10, 2)
+  costPerUnit Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
 }
