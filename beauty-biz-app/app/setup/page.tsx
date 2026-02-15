@@ -1,40 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SetupPage() {
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [name, setName] = useState("Demo Business");
+  const router = useRouter();
+  const [mode, setMode] = useState<"login" | "register">("register");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const existing = localStorage.getItem("businessId");
-    if (existing) setBusinessId(existing);
-  }, []);
+    if (existing) router.push("/dashboard");
+  }, [router]);
 
-  async function bootstrap() {
+  async function submit() {
     setLoading(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/bootstrap", {
+      const res = await fetch("/api/auth/mock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email: email.trim() || null,
-          phone: phone.trim() || null,
-        }),
+        body: JSON.stringify({ mode, email, name }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Bootstrap failed");
+      if (!res.ok) throw new Error(data?.error ?? "Request failed");
 
       localStorage.setItem("businessId", data.businessId);
-      setBusinessId(data.businessId);
-      setMsg(data.created ? "Created business ✅" : "Business already exists ✅");
+      router.push("/dashboard");
     } catch (e: any) {
       setMsg(e?.message ?? "Unknown error");
     } finally {
@@ -42,74 +37,50 @@ export default function SetupPage() {
     }
   }
 
-  function clear() {
-    localStorage.removeItem("businessId");
-    setBusinessId(null);
-    setMsg("Cleared local businessId.");
-  }
-
   return (
-    <main style={{ maxWidth: 900, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Setup</h1>
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        This creates (or reuses) a Business and stores <code>businessId</code> in localStorage.
+    <main style={{ maxWidth: 720, margin: "60px auto", padding: 16 }}>
+      <h1 style={{ fontSize: 34, fontWeight: 800 }}>Business Portal</h1>
+      <p style={{ marginTop: 8, opacity: 0.8 }}>
+        Mock auth for hackathon: register or log in with an email to enter the dashboard.
       </p>
 
-      <div style={{ marginTop: 20, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-          <label>
-            <div style={{ fontWeight: 600 }}>Business name</div>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={inputStyle}
-              placeholder="My Salon"
-            />
-          </label>
-
-          <label>
-            <div style={{ fontWeight: 600 }}>Email (optional)</div>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-              placeholder="owner@mysalon.com"
-            />
-          </label>
-
-          <label>
-            <div style={{ fontWeight: 600 }}>Phone (optional)</div>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={inputStyle}
-              placeholder="(555) 555-5555"
-            />
-          </label>
-
-          <div>
-            <div style={{ fontWeight: 600 }}>Current businessId</div>
-            <div style={{ marginTop: 8, fontFamily: "monospace", fontSize: 13, wordBreak: "break-all" }}>
-              {businessId ?? "(none yet)"}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
-          <button onClick={bootstrap} disabled={loading} style={buttonStyle}>
-            {loading ? "Working..." : "Create / Fetch Business"}
+      <div style={{ marginTop: 20, padding: 18, border: "1px solid #ddd", borderRadius: 14 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <button
+            onClick={() => setMode("register")}
+            style={{ ...buttonStyle, background: mode === "register" ? "#eee" : "#fff" }}
+          >
+            Register
           </button>
-
-          <a href="/dashboard" style={{ ...buttonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-            Go to Dashboard →
-          </a>
-
-          <button onClick={clear} style={{ ...buttonStyle, background: "#fff" }}>
-            Clear local businessId
+          <button
+            onClick={() => setMode("login")}
+            style={{ ...buttonStyle, background: mode === "login" ? "#eee" : "#fff" }}
+          >
+            Login
           </button>
         </div>
 
-        {msg && <div style={{ marginTop: 12 }}>{msg}</div>}
+        {mode === "register" && (
+          <label>
+            <div style={{ fontWeight: 700 }}>Business name</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="My Salon" />
+          </label>
+        )}
+
+        <label style={{ display: "block", marginTop: 12 }}>
+          <div style={{ fontWeight: 700 }}>Email</div>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="owner@mysalon.com" />
+        </label>
+
+        <button
+          onClick={submit}
+          disabled={loading || !email.trim() || (mode === "register" && !name.trim())}
+          style={{ ...buttonStyle, marginTop: 14 }}
+        >
+          {loading ? "Working..." : mode === "login" ? "Login →" : "Register →"}
+        </button>
+
+        {msg && <div style={{ marginTop: 12, color: "#b00020" }}>{msg}</div>}
       </div>
     </main>
   );
@@ -130,5 +101,5 @@ const buttonStyle: React.CSSProperties = {
   border: "1px solid #ccc",
   background: "#f5f5f5",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
 };
