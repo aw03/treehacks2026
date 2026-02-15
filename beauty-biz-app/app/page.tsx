@@ -4,10 +4,10 @@ export default function Home() {
   return (
     <main className="page-bg">
       <div className="container-narrow">
-        <h1>Beauty Biz</h1>
+        <h1>BusinessBuddy</h1>
 
         <p>
-          A smarter way to run and book beauty services. Manage appointments,
+          A smarter way to run and book small business services. Manage appointments,
           track inventory, and grow your business — all in one place.
         </p>
 
@@ -23,7 +23,7 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Built for modern beauty entrepreneurs</h2>
+            <h2>Built for modern entrepreneurs providing services</h2>
             <ul>
               <li>Centralized scheduling</li>
               <li>Inventory tracking</li>
