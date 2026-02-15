@@ -48,6 +48,8 @@ export default function BusinessPage() {
       setLoading(true);
       setErr(null);
       try {
+        if (!businessId) throw new Error("Missing businessId from URL.");
+
         const res = await fetch(`/api/businesses/${businessId}`);
         const text = await res.text();
         if (!text) throw new Error("Empty response from business details API.");
@@ -77,7 +79,10 @@ export default function BusinessPage() {
     };
   }, [businessId]);
 
-  const selectedService = useMemo(() => services.find((s) => s.id === serviceId) ?? null, [services, serviceId]);
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === serviceId) ?? null,
+    [services, serviceId]
+  );
 
   function walkInBadge() {
     if (!walkIn) return null;
@@ -104,8 +109,8 @@ export default function BusinessPage() {
               ? `(closes in ${walkIn.closesInMin} min)`
               : ""
             : walkIn.reason
-              ? `(${walkIn.reason})`
-              : ""}
+            ? `(${walkIn.reason})`
+            : ""}
         </span>
       </div>
     );
@@ -115,16 +120,18 @@ export default function BusinessPage() {
     setErr(null);
     setSuccessMsg(null);
 
-    if (!businessId) return;
+    if (!businessId) return setErr("Missing businessId.");
     if (!serviceId) return setErr("Pick a service.");
+    if (!selectedService) return setErr("Selected service not found.");
     if (!clientName.trim()) return setErr("Client name is required.");
     if (!clientPhone.trim()) return setErr("Client phone is required (naive mode).");
     if (!date || !time) return setErr("Pick a date and time.");
 
     // Naive: interpret as local browser time and send ISO.
-    // (Later: we can use business timezone + proper conversion.)
     const start = new Date(`${date}T${time}:00`);
     if (isNaN(start.getTime())) return setErr("Invalid date/time.");
+
+    const end = new Date(start.getTime() + selectedService.durationMin * 60 * 1000);
 
     setSubmitting(true);
     try {
@@ -134,7 +141,10 @@ export default function BusinessPage() {
         body: JSON.stringify({
           businessId,
           serviceId,
-          startTimeISO: start.toISOString(),
+          startTime: start.toISOString(), // ✅ correct key
+          endTime: end.toISOString(),     // ✅ required by API
+          // This requires the "client object" patch in /api/appointments.
+          // If you didn't apply it yet, you must send clientId instead.
           client: { name: clientName.trim(), phone: clientPhone.trim() },
           notes: notes.trim() ? notes.trim() : undefined,
         }),
@@ -174,30 +184,57 @@ export default function BusinessPage() {
       {loading ? (
         <div style={{ marginTop: 16, opacity: 0.75 }}>Loading…</div>
       ) : err ? (
-        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, border: "1px solid #f5c2c7", background: "#f8d7da" }}>
+        <div
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #f5c2c7",
+            background: "#f8d7da",
+          }}
+        >
           {err}
         </div>
       ) : !business ? (
         <div style={{ marginTop: 16, opacity: 0.75 }}>Business not found.</div>
       ) : (
         <>
-          <h1 style={{ fontSize: 30, fontWeight: 900, margin: "16px 0 0 0" }}>{business.name}</h1>
+          <h1 style={{ fontSize: 30, fontWeight: 900, margin: "16px 0 0 0" }}>
+            {business.name}
+          </h1>
           <div style={{ marginTop: 6, opacity: 0.75 }}>
-            {business.phone ?? "No phone"} • {business.email ?? "No email"} • {business.timezone}
+            {business.phone ?? "No phone"} • {business.email ?? "No email"} •{" "}
+            {business.timezone}
           </div>
 
           {walkInBadge()}
 
           {/* Services */}
-          <section style={{ border: "1px solid #ddd", borderRadius: 14, padding: 16, marginTop: 16 }}>
+          <section
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 14,
+              padding: 16,
+              marginTop: 16,
+            }}
+          >
             <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>Services</h2>
 
             {services.length === 0 ? (
-              <div style={{ marginTop: 10, opacity: 0.7 }}>No services listed for this business yet.</div>
+              <div style={{ marginTop: 10, opacity: 0.7 }}>
+                No services listed for this business yet.
+              </div>
             ) : (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 {services.map((s) => (
-                  <div key={s.id} style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                  <div
+                    key={s.id}
+                    style={{
+                      border: "1px solid #eee",
+                      borderRadius: 12,
+                      padding: 12,
+                    }}
+                  >
                     <div style={{ fontWeight: 900 }}>{s.name}</div>
                     <div style={{ marginTop: 4, opacity: 0.75 }}>
                       ${s.price} • {s.durationMin} min
@@ -209,30 +246,69 @@ export default function BusinessPage() {
           </section>
 
           {/* Schedule appointment */}
-          <section style={{ border: "1px solid #ddd", borderRadius: 14, padding: 16, marginTop: 16 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>Schedule appointment (naive)</h2>
+          <section
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 14,
+              padding: 16,
+              marginTop: 16,
+            }}
+          >
+            <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>
+              Schedule appointment (naive)
+            </h2>
             <div style={{ marginTop: 8, opacity: 0.75 }}>
-              This version doesn’t check conflicts or business hours yet — it just creates an appointment.
+              This version doesn’t check business hours — it creates an appointment.
+              (Your API does check conflicts for scheduled appointments.)
             </div>
 
             {successMsg && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #cfe2ff", background: "#e7f1ff" }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #cfe2ff",
+                  background: "#e7f1ff",
+                }}
+              >
                 {successMsg}
               </div>
             )}
             {err && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #f5c2c7", background: "#f8d7da" }}>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #f5c2c7",
+                  background: "#f8d7da",
+                }}
+              >
                 {err}
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+                marginTop: 12,
+              }}
+            >
               <div>
                 <label style={{ fontWeight: 900 }}>Service</label>
                 <select
                   value={serviceId}
                   onChange={(e) => setServiceId(e.target.value)}
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 >
                   {services.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -248,7 +324,13 @@ export default function BusinessPage() {
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="e.g., Aaliyah"
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 />
               </div>
 
@@ -258,7 +340,13 @@ export default function BusinessPage() {
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                   placeholder="e.g., 6175551234"
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 />
               </div>
 
@@ -268,7 +356,13 @@ export default function BusinessPage() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 />
               </div>
 
@@ -278,7 +372,13 @@ export default function BusinessPage() {
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 />
               </div>
 
@@ -288,12 +388,27 @@ export default function BusinessPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Anything they should know"
-                  style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 12, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid #ccc",
+                  }}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
               <div style={{ opacity: 0.75 }}>
                 {selectedService ? `Selected: ${selectedService.name}` : ""}
               </div>
