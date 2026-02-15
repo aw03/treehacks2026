@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Business" ADD COLUMN     "timezone" TEXT NOT NULL DEFAULT 'America/New_York',
+ADD COLUMN     "walkInEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "walkInEndMin" INTEGER NOT NULL DEFAULT 1080,
+ADD COLUMN     "walkInStartMin" INTEGER NOT NULL DEFAULT 600;

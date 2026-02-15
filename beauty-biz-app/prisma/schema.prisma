@@ -28,6 +28,12 @@ model Business {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // NEW (walk-in window + timezone)
+  timezone       String  @default("America/New_York")
+  walkInEnabled  Boolean @default(false)
+  walkInStartMin Int     @default(600)  // 10:00 AM
+  walkInEndMin   Int     @default(1080) // 6:00 PM
+
   clients          Client[]
   services         Service[]
   appointments     Appointment[]
