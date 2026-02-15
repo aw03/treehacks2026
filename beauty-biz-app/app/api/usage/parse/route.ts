@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const runtime = "nodejs";
+
 type ParsedUsage = {
   supplyId: string;
   quantityUsed: string; // Decimal-safe string
   unit?: string | null;
   method?: string | null;
   rawInput?: string | null;
+  confidence?: string | null; // store as string for safety
 };
 
 function clampNonNegative(n: number) {
@@ -22,9 +25,16 @@ function safeJsonParse<T>(text: string): T | null {
   }
 }
 
+function extractToolInput(json: any): any | null {
+  // Anthropic returns content blocks; tool outputs come as { type: "tool_use", name, input }
+  const blocks = json?.content;
+  if (!Array.isArray(blocks)) return null;
+  const toolUse = blocks.find((b: any) => b?.type === "tool_use" && b?.name === "set_supply_usages");
+  return toolUse?.input ?? null;
+}
+
 export async function POST(req: Request) {
   const requestId = `usage-parse-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
   console.log(`[${requestId}] POST /api/usage/parse start`);
 
   try {
@@ -40,14 +50,8 @@ export async function POST(req: Request) {
 
     console.log(`[${requestId}] businessId=${businessId} serviceName="${serviceName}" textLen=${text.length}`);
 
-    if (!businessId) {
-      console.warn(`[${requestId}] Missing businessId`);
-      return NextResponse.json({ error: "Missing businessId" }, { status: 400 });
-    }
-    if (!text) {
-      console.warn(`[${requestId}] Missing text`);
-      return NextResponse.json({ error: "Missing text" }, { status: 400 });
-    }
+    if (!businessId) return NextResponse.json({ error: "Missing businessId" }, { status: 400 });
+    if (!text) return NextResponse.json({ error: "Missing text" }, { status: 400 });
 
     const supplies = await prisma.supplyItem.findMany({
       where: { businessId },
@@ -58,7 +62,6 @@ export async function POST(req: Request) {
     console.log(`[${requestId}] suppliesLoaded=${supplies.length}`);
 
     if (supplies.length === 0) {
-      console.warn(`[${requestId}] No supplies in DB for businessId=${businessId}`);
       return NextResponse.json({ error: "No supplies exist yet for this business." }, { status: 400 });
     }
 
@@ -66,9 +69,7 @@ export async function POST(req: Request) {
     const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
     const anthropicVersion = process.env.ANTHROPIC_VERSION ?? "2023-06-01";
 
-    console.log(
-      `[${requestId}] anthropicKeyPresent=${!!apiKey} model=${model} anthropicVersion=${anthropicVersion}`
-    );
+    console.log(`[${requestId}] anthropicKeyPresent=${!!apiKey} model=${model} anthropicVersion=${anthropicVersion}`);
 
     // Fallback if no key
     if (!apiKey) {
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
           fallback.push({
             supplyId: s.id,
             quantityUsed: String(m ? clampNonNegative(Number(m[1])) : 1),
-            unit: s.unit,
+            unit: s.unit ?? null,
             method: "fallback",
             rawInput: text,
           });
@@ -97,32 +98,55 @@ export async function POST(req: Request) {
       unit: s.unit ?? null,
     }));
 
+    // ✅ Tool schema: forces valid structured output
+    const tools = [
+      {
+        name: "set_supply_usages",
+        description:
+          "Return structured supply usage extracted from stylist notes. Use only supply IDs provided. If none match, return an empty items array.",
+        input_schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  supplyId: { type: "string" },
+                  quantityUsed: { type: "number", minimum: 0 },
+                  unit: { type: ["string", "null"] },
+                  method: { type: "string", enum: ["llm"] },
+                  confidence: { type: ["number", "null"], minimum: 0, maximum: 1 },
+                  rawInput: { type: ["string", "null"] },
+                },
+                required: ["supplyId", "quantityUsed", "method"],
+              },
+            },
+          },
+          required: ["items"],
+        },
+      },
+    ];
+
     const system = [
       "You extract structured supply usage from stylist notes.",
-      "You MUST return valid JSON ONLY (no markdown, no commentary).",
-      "Use ONLY supplies from the provided list. If none match, return an empty array.",
-      "Quantities must be numeric and non-negative. Prefer decimals (e.g., 1.5).",
-      "If the note uses vague amounts (e.g., 'a little', 'some'), make a reasonable estimate (small).",
-      "If units are mentioned (ml, oz, pumps, pieces), map to the supply's unit when possible. If unknown, omit unit.",
+      "Use ONLY supplies from the provided list (match by name/alias; output supplyId).",
+      "Return realistic, non-negative numeric quantities; prefer decimals (e.g., 1.5).",
+      "If the note is vague (e.g., 'a little'), estimate a small quantity.",
+      "If unit is mentioned, include it; otherwise use the supply's unit if it makes sense, else null.",
+      "If nothing matches, return items: [].",
+      "IMPORTANT: You MUST respond by calling the tool set_supply_usages.",
     ].join("\n");
 
-    const user = {
+    const userPayload = {
       serviceName,
       note: text,
       supplies: supplyOptions,
-      output_schema: {
-        usages: [
-          {
-            supplyId: "string (must be one of supplies[].id)",
-            quantityUsed: "number",
-            unit: "string|null (optional)",
-            method: "string (manual|llm|cv)",
-          },
-        ],
-      },
     };
 
-    console.log(`[${requestId}] calling Anthropic...`);
+    console.log(`[${requestId}] calling Anthropic (tool_choice forced)...`);
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -136,7 +160,9 @@ export async function POST(req: Request) {
         max_tokens: 500,
         temperature: 0.2,
         system,
-        messages: [{ role: "user", content: JSON.stringify(user) }],
+        tool_choice: { type: "tool", name: "set_supply_usages" }, // ✅ force tool use
+        tools,
+        messages: [{ role: "user", content: JSON.stringify(userPayload) }],
       }),
     });
 
@@ -153,34 +179,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const textOut: string | undefined =
-      json?.content?.find?.((c: any) => c?.type === "text")?.text;
-
-    if (!textOut) {
-      console.error(`[${requestId}] No text content from Anthropic. Full json keys:`, Object.keys(json ?? {}));
-      return NextResponse.json({ error: "Claude returned no text content", raw: json }, { status: 500 });
+    if (!json) {
+      console.error(`[${requestId}] Anthropic returned non-JSON raw (truncated):`, raw.slice(0, 800));
+      return NextResponse.json({ error: "Claude returned non-JSON response", raw: raw.slice(0, 2000) }, { status: 500 });
     }
 
-    console.log(`[${requestId}] Claude textOut (truncated):`, textOut.slice(0, 800));
-
-    const parsed = safeJsonParse<{ usages: any[] }>(textOut);
-    if (!parsed || !Array.isArray(parsed.usages)) {
-      console.error(`[${requestId}] Claude output not valid JSON`, { textOut: textOut.slice(0, 800) });
-      return NextResponse.json({ error: "Claude output was not valid JSON", textOut: textOut.slice(0, 2000) }, { status: 500 });
+    // ✅ Read structured output from tool_use.input (no parsing text needed)
+    const toolInput = extractToolInput(json);
+    if (!toolInput || !Array.isArray(toolInput.items)) {
+      console.error(`[${requestId}] Missing tool_use input. Content blocks:`, json?.content);
+      return NextResponse.json(
+        { error: "Claude did not return tool output", raw: json },
+        { status: 500 }
+      );
     }
 
     const allowed = new Set(supplies.map((s) => s.id));
 
-    const usages: ParsedUsage[] = parsed.usages
-      .filter((u) => u && typeof u.supplyId === "string" && allowed.has(u.supplyId))
-      .map((u) => ({
+    const usages: ParsedUsage[] = (toolInput.items as any[])
+    .filter((u: any) => u && typeof u.supplyId === "string" && allowed.has(u.supplyId))
+    .map((u: any) => ({
         supplyId: u.supplyId,
         quantityUsed: String(clampNonNegative(Number(u.quantityUsed))),
         unit: typeof u.unit === "string" ? u.unit : null,
         method: "llm",
         rawInput: text,
-      }))
-      .filter((u) => Number(u.quantityUsed) > 0);
+        confidence: u.confidence == null ? null : String(u.confidence),
+    }))
+    .filter((u: ParsedUsage) => Number(u.quantityUsed) > 0);
 
     console.log(`[${requestId}] parsedUsages=${usages.length}`);
 
