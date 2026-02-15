@@ -54,6 +54,9 @@ export default function UsagePage() {
 
   const [usageRows, setUsageRows] = useState<UsageRow[]>([]);
 
+  // ✅ NEW: AI parsing input
+  const [aiText, setAiText] = useState<string>("");
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -108,6 +111,7 @@ export default function UsagePage() {
     setActualDurationMin("");
     setNotes("");
     setUsageRows([]);
+    setAiText("");
     setMsg(null);
   }
 
@@ -148,6 +152,7 @@ export default function UsagePage() {
         })) ?? [];
 
       setUsageRows(rows.length ? rows : []);
+      setAiText("");
       setMsg("Loaded review record ✅");
     } catch (e: any) {
       setErr(e?.message ?? "Unknown error");
@@ -159,7 +164,13 @@ export default function UsagePage() {
   function addUsageRow() {
     setUsageRows((prev) => [
       ...prev,
-      { supplyId: supplies[0]?.id ?? "", quantityUsed: "0", method: "manual", rawInput: "", unit: supplies[0]?.unit ?? "" },
+      {
+        supplyId: supplies[0]?.id ?? "",
+        quantityUsed: "0",
+        method: "manual",
+        rawInput: "",
+        unit: supplies[0]?.unit ?? "",
+      },
     ]);
   }
 
@@ -169,6 +180,49 @@ export default function UsagePage() {
 
   function removeRow(i: number) {
     setUsageRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  // ✅ NEW: call Claude parsing endpoint and populate usageRows
+  async function generateFromAI() {
+    if (!businessId) return;
+    if (!instance) return;
+
+    setErr(null);
+    setMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/usage/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId,
+          text: aiText,
+          serviceName: instance?.service?.name ?? "",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "AI parse failed");
+
+      const usages = data.usages ?? [];
+
+      setUsageRows(
+        usages.map((u: any) => ({
+          supplyId: u.supplyId,
+          quantityUsed: String(u.quantityUsed),
+          unit: u.unit ?? "",
+          method: u.method ?? "llm",
+          rawInput: aiText,
+        }))
+      );
+
+      setMsg("AI filled supplies ✅ (review + Save draft)");
+    } catch (e: any) {
+      setErr(e?.message ?? "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function saveDraft() {
@@ -285,8 +339,12 @@ export default function UsagePage() {
 
             {selectedAppt && (
               <div style={{ marginTop: 10, opacity: 0.85 }}>
-                <div><strong>Client:</strong> {selectedAppt.client.name}</div>
-                <div><strong>Service:</strong> {selectedAppt.service.name}</div>
+                <div>
+                  <strong>Client:</strong> {selectedAppt.client.name}
+                </div>
+                <div>
+                  <strong>Service:</strong> {selectedAppt.service.name}
+                </div>
                 <div>
                   <strong>Booked lead time:</strong>{" "}
                   {Math.round((new Date(selectedAppt.startTime).getTime() - new Date(selectedAppt.createdAt).getTime()) / (1000 * 60))} min
@@ -311,10 +369,7 @@ export default function UsagePage() {
         <button
           onClick={startReview}
           style={{ ...buttonStyle, marginTop: 12 }}
-          disabled={
-            loading ||
-            (mode === "APPOINTMENT" ? !selectedApptId : !selectedServiceId)
-          }
+          disabled={loading || (mode === "APPOINTMENT" ? !selectedApptId : !selectedServiceId)}
         >
           Start review →
         </button>
@@ -326,9 +381,13 @@ export default function UsagePage() {
           <h2 style={h2Style}>2) Log what actually happened</h2>
 
           <div style={{ marginTop: 10, opacity: 0.85 }}>
-            <div><strong>Service:</strong> {instance.service?.name ?? "(unknown)"}</div>
+            <div>
+              <strong>Service:</strong> {instance.service?.name ?? "(unknown)"}
+            </div>
             {instance.appointment && (
-              <div><strong>Appointment:</strong> {new Date(instance.appointment.startTime).toLocaleString()}</div>
+              <div>
+                <strong>Appointment:</strong> {new Date(instance.appointment.startTime).toLocaleString()}
+              </div>
             )}
           </div>
 
@@ -345,13 +404,36 @@ export default function UsagePage() {
 
             <label>
               <div style={{ fontWeight: 800 }}>Notes</div>
-              <input
-                style={inputStyle}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any observations…"
-              />
+              <input style={inputStyle} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any observations…" />
             </label>
+          </div>
+
+          {/* ✅ NEW: AI parsing box */}
+          <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Quick input (AI)</div>
+            <textarea
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                border: "1px solid #ccc",
+                borderRadius: 10,
+                minHeight: 80,
+              }}
+              value={aiText}
+              onChange={(e) => setAiText(e.target.value)}
+              placeholder='Example: "Used 2 pumps of gel and ~10ml of spray. Also 1 alcohol wipe."'
+            />
+            <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={generateFromAI} style={buttonStyle} disabled={loading || !aiText.trim()}>
+                Generate supply usage
+              </button>
+              <button onClick={() => setAiText("")} style={buttonStyle} disabled={loading}>
+                Clear
+              </button>
+            </div>
+            <div style={{ marginTop: 8, opacity: 0.75, fontSize: 13 }}>
+              AI will map your note to your existing supplies and fill the table below.
+            </div>
           </div>
 
           <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -391,18 +473,9 @@ export default function UsagePage() {
                       placeholder="Qty used"
                     />
 
-                    <input
-                      style={inputStyle}
-                      value={r.unit ?? ""}
-                      onChange={(e) => updateRow(i, { unit: e.target.value })}
-                      placeholder="unit"
-                    />
+                    <input style={inputStyle} value={r.unit ?? ""} onChange={(e) => updateRow(i, { unit: e.target.value })} placeholder="unit" />
 
-                    <select
-                      style={inputStyle}
-                      value={r.method ?? "manual"}
-                      onChange={(e) => updateRow(i, { method: e.target.value })}
-                    >
+                    <select style={inputStyle} value={r.method ?? "manual"} onChange={(e) => updateRow(i, { method: e.target.value })}>
                       <option value="manual">manual</option>
                       <option value="llm">llm</option>
                       <option value="cv">cv</option>
@@ -436,9 +509,7 @@ export default function UsagePage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 10, opacity: 0.75, fontSize: 13 }}>
-            Finalize will decrement SupplyItem.quantity based on what you logged above.
-          </div>
+          <div style={{ marginTop: 10, opacity: 0.75, fontSize: 13 }}>Finalize will decrement SupplyItem.quantity based on what you logged above.</div>
         </section>
       )}
     </main>
@@ -447,19 +518,20 @@ export default function UsagePage() {
 
 function Box({ kind, children }: { kind: "error" | "ok"; children: any }) {
   const style =
-    kind === "error"
-      ? { border: "1px solid #f5c2c7", background: "#f8d7da" }
-      : { border: "1px solid #cfe2ff", background: "#e7f1ff" };
+    kind === "error" ? { border: "1px solid #f5c2c7", background: "#f8d7da" } : { border: "1px solid #cfe2ff", background: "#e7f1ff" };
 
-  return (
-    <div style={{ marginTop: 14, padding: 12, borderRadius: 12, ...style }}>
-      {children}
-    </div>
-  );
+  return <div style={{ marginTop: 14, padding: 12, borderRadius: 12, ...style }}>{children}</div>;
 }
 
 const cardStyle: React.CSSProperties = { border: "1px solid #ddd", borderRadius: 14, padding: 16 };
 const h2Style: React.CSSProperties = { fontSize: 18, fontWeight: 900, margin: 0 };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 10 };
-const buttonStyle: React.CSSProperties = { padding: "10px 14px", borderRadius: 12, border: "1px solid #ccc", background: "#f5f5f5", cursor: "pointer", fontWeight: 800 };
+const buttonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid #ccc",
+  background: "#f5f5f5",
+  cursor: "pointer",
+  fontWeight: 800,
+};
 const dangerStyle: React.CSSProperties = { ...buttonStyle, background: "#fff", borderColor: "#e0a0a0" };
