@@ -306,3 +306,21 @@ ul {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.18);
 }
+
+textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+  resize: vertical;
+}
+textarea:focus {
+  border-color: rgba(124, 58, 237, 0.7);
+  box-shadow: var(--focus);
+}
+
+.card h2 { margin: 0; }

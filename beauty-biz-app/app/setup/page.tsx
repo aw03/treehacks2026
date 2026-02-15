@@ -38,68 +38,74 @@ export default function SetupPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "60px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 34, fontWeight: 800 }}>Business Portal</h1>
-      <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Mock auth for hackathon: register or log in with an email to enter the dashboard.
-      </p>
+    <main className="page-bg">
+      <div className="container" style={{ maxWidth: 720 }}>
+        <h1 style={{ fontSize: 34 }}>Business Portal</h1>
 
-      <div style={{ marginTop: 20, padding: 18, border: "1px solid #ddd", borderRadius: 14 }}>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          <button
-            onClick={() => setMode("register")}
-            style={{ ...buttonStyle, background: mode === "register" ? "#eee" : "#fff" }}
-          >
-            Register
-          </button>
-          <button
-            onClick={() => setMode("login")}
-            style={{ ...buttonStyle, background: mode === "login" ? "#eee" : "#fff" }}
-          >
-            Login
-          </button>
+        <div className="small" style={{ marginTop: 10 }}>
+          Mock auth for hackathon: register or log in with an email to enter the dashboard.
         </div>
 
-        {mode === "register" && (
-          <label>
-            <div style={{ fontWeight: 700 }}>Business name</div>
-            <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="My Salon" />
+        <div className="card" style={{ marginTop: 20 }}>
+          {/* Mode Switch */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+            <button
+              className={mode === "register" ? "btn btn-primary" : "btn btn-secondary"}
+              onClick={() => setMode("register")}
+              style={{ opacity: mode === "register" ? 1 : 0.85 }}
+            >
+              Register
+            </button>
+
+            <button
+              className={mode === "login" ? "btn btn-primary" : "btn btn-secondary"}
+              onClick={() => setMode("login")}
+              style={{ opacity: mode === "login" ? 1 : 0.85 }}
+            >
+              Login
+            </button>
+          </div>
+
+          {mode === "register" && (
+            <label className="stack-16" style={{ gap: 8 }}>
+              <div className="small" style={{ fontWeight: 900, color: "var(--text)" }}>
+                Business name
+              </div>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="My Salon"
+              />
+            </label>
+          )}
+
+          <label className="stack-16" style={{ gap: 8, marginTop: 14 }}>
+            <div className="small" style={{ fontWeight: 900, color: "var(--text)" }}>
+              Email
+            </div>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="owner@mysalon.com"
+            />
           </label>
-        )}
 
-        <label style={{ display: "block", marginTop: 12 }}>
-          <div style={{ fontWeight: 700 }}>Email</div>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="owner@mysalon.com" />
-        </label>
+          <button
+            onClick={submit}
+            disabled={loading || !email.trim() || (mode === "register" && !name.trim())}
+            className="btn btn-primary"
+            style={{ marginTop: 18, opacity: loading ? 0.7 : 1 }}
+          >
+            {loading ? "Working..." : mode === "login" ? "Login →" : "Register →"}
+          </button>
 
-        <button
-          onClick={submit}
-          disabled={loading || !email.trim() || (mode === "register" && !name.trim())}
-          style={{ ...buttonStyle, marginTop: 14 }}
-        >
-          {loading ? "Working..." : mode === "login" ? "Login →" : "Register →"}
-        </button>
-
-        {msg && <div style={{ marginTop: 12, color: "#b00020" }}>{msg}</div>}
+          {msg && (
+            <div className="alert alert-danger" style={{ marginTop: 14 }}>
+              {msg}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  marginTop: 6,
-  padding: "10px 12px",
-  border: "1px solid #ccc",
-  borderRadius: 10,
-  outline: "none",
-};
-
-const buttonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #ccc",
-  background: "#f5f5f5",
-  cursor: "pointer",
-  fontWeight: 700,
-};
