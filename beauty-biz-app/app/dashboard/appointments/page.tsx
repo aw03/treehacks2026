@@ -14,7 +14,12 @@ type Appointment = {
   service: { name: string } | null;
 };
 
-const STATUS_OPTIONS: AppointmentStatus[] = ["SCHEDULED", "COMPLETED", "CANCELED", "NO_SHOW"];
+const STATUS_OPTIONS: AppointmentStatus[] = [
+  "SCHEDULED",
+  "COMPLETED",
+  "CANCELED",
+  "NO_SHOW",
+];
 
 export default function AppointmentsPage() {
   const router = useRouter();
@@ -91,7 +96,7 @@ export default function AppointmentsPage() {
     if (!current) return;
 
     if (!newStatus) return setErr("Pick a status.");
-    if (newStatus === current.status) return; // nothing to do
+    if (newStatus === current.status) return;
 
     setSavingId(appointmentId);
     try {
@@ -107,7 +112,6 @@ export default function AppointmentsPage() {
 
       if (!res.ok) throw new Error(data?.error ?? "Failed to update status");
 
-      // update local list
       setAppointments((prev) =>
         prev.map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a))
       );
@@ -115,7 +119,6 @@ export default function AppointmentsPage() {
       setMsg(`Updated status → ${newStatus} ✅`);
     } catch (e: any) {
       setErr(e?.message ?? "Unknown error");
-      // revert draft to current if error
       setDraftStatus((prev) => ({ ...prev, [appointmentId]: current.status }));
     } finally {
       setSavingId(null);
@@ -132,7 +135,6 @@ export default function AppointmentsPage() {
 
     if (changed.length === 0) return;
 
-    // Save sequentially (simple + safe)
     for (const id of changed) {
       // eslint-disable-next-line no-await-in-loop
       await saveStatus(id);
@@ -140,157 +142,171 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: "40px auto", padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>Appointments</h1>
-          <button onClick={() => router.push("/dashboard")} style={{ ...buttonStyle, marginTop: 10 }}>
-            ← Back
-          </button>
+    <main className="page-bg">
+      <div className="container">
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div className="stack-16">
+            <h1 style={{ fontSize: 34 }}>Appointments</h1>
+            <button className="btn btn-ghost" onClick={() => router.push("/dashboard")}>
+              ← Back
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-secondary" onClick={load} disabled={loading}>
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+
+            <button
+              className="btn btn-primary"
+              onClick={saveAll}
+              disabled={!hasChanges || savingId !== null}
+              style={{
+                opacity: !hasChanges || savingId !== null ? 0.6 : 1,
+              }}
+            >
+              Save all changes
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={load} disabled={loading} style={buttonStyle}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-          <button
-            onClick={saveAll}
-            disabled={!hasChanges || savingId !== null}
-            style={{ ...buttonStyle, background: hasChanges ? "#eef6ff" : "#f5f5f5" }}
-          >
-            Save all changes
-          </button>
-        </div>
-      </div>
-
-      {err && <ErrorBox msg={err} />}
-      {msg && <OkBox msg={msg} />}
-
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h2 style={h2Style}>Filter</h2>
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr auto", marginTop: 10 }}>
-          <label>
-            <div style={{ fontWeight: 800 }}>From</div>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
-          </label>
-          <label>
-            <div style={{ fontWeight: 800 }}>To</div>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
-          </label>
-          <button style={{ ...buttonStyle, alignSelf: "end" }} onClick={load}>
-            Apply
-          </button>
-        </div>
-      </section>
-
-      <section style={{ ...cardStyle, marginTop: 16 }}>
-        <h2 style={h2Style}>Upcoming / recent</h2>
-
-        {appointments.length === 0 ? (
-          <div style={{ marginTop: 10, opacity: 0.75 }}>No appointments yet.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Time</th>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Service</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Update</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((a) => {
-                const draft = draftStatus[a.id] ?? a.status;
-                const dirty = draft !== a.status;
-
-                return (
-                  <tr key={a.id}>
-                    <td style={tdStyle}>
-                      {new Date(a.startTime).toLocaleString()} → {new Date(a.endTime).toLocaleString()}
-                    </td>
-                    <td style={tdStyle}>{a.client?.name ?? "-"}</td>
-                    <td style={tdStyle}>{a.service?.name ?? "-"}</td>
-
-                    <td style={tdStyle}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <select
-                          value={draft}
-                          onChange={(e) =>
-                            setDraftStatus((prev) => ({
-                              ...prev,
-                              [a.id]: e.target.value as AppointmentStatus,
-                            }))
-                          }
-                          style={{
-                            padding: "8px 10px",
-                            borderRadius: 10,
-                            border: "1px solid #ccc",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {STATUS_OPTIONS.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-
-                        {dirty && <span style={{ fontSize: 12, opacity: 0.7 }}>Unsaved</span>}
-                      </div>
-                    </td>
-
-                    <td style={tdStyle}>
-                      <button
-                        onClick={() => saveStatus(a.id)}
-                        disabled={savingId !== null && savingId !== a.id}
-                        style={{
-                          ...buttonStyle,
-                          background: dirty ? "#eef6ff" : "#f5f5f5",
-                          opacity: savingId === a.id ? 0.7 : 1,
-                        }}
-                      >
-                        {savingId === a.id ? "Saving..." : "Save"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Alerts */}
+        {err && (
+          <div className="alert alert-danger" style={{ marginTop: 14 }}>
+            {err}
+          </div>
         )}
-      </section>
+        {msg && (
+          <div className="alert alert-accent" style={{ marginTop: 14 }}>
+            {msg}
+          </div>
+        )}
+
+        {/* Filter */}
+        <section className="card" style={{ marginTop: 16 }}>
+          <h2>Filter</h2>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              gridTemplateColumns: "1fr 1fr auto",
+              marginTop: 12,
+              alignItems: "end",
+            }}
+          >
+            <label className="stack-16" style={{ gap: 8 }}>
+              <div className="small" style={{ fontWeight: 800, color: "var(--text)" }}>
+                From
+              </div>
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </label>
+
+            <label className="stack-16" style={{ gap: 8 }}>
+              <div className="small" style={{ fontWeight: 800, color: "var(--text)" }}>
+                To
+              </div>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </label>
+
+            <button className="btn btn-secondary" onClick={load}>
+              Apply
+            </button>
+          </div>
+        </section>
+
+        {/* Table */}
+        <section className="card" style={{ marginTop: 16 }}>
+          <h2>Upcoming / recent</h2>
+
+          {appointments.length === 0 ? (
+            <div className="small" style={{ marginTop: 12 }}>
+              No appointments yet.
+            </div>
+          ) : (
+            <div style={{ marginTop: 12, overflowX: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Client</th>
+                    <th>Service</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Update</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {appointments.map((a) => {
+                    const draft = draftStatus[a.id] ?? a.status;
+                    const dirty = draft !== a.status;
+
+                    return (
+                      <tr key={a.id}>
+                        <td style={{ verticalAlign: "top" }}>
+                          {new Date(a.startTime).toLocaleString()} →{" "}
+                          {new Date(a.endTime).toLocaleString()}
+                        </td>
+                        <td style={{ verticalAlign: "top" }}>{a.client?.name ?? "-"}</td>
+                        <td style={{ verticalAlign: "top" }}>{a.service?.name ?? "-"}</td>
+
+                        <td style={{ verticalAlign: "top" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                            <select
+                              value={draft}
+                              onChange={(e) =>
+                                setDraftStatus((prev) => ({
+                                  ...prev,
+                                  [a.id]: e.target.value as AppointmentStatus,
+                                }))
+                              }
+                              style={{ maxWidth: 220 }}
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+
+                            {dirty && (
+                              <span className="small" style={{ color: "var(--muted)" }}>
+                                Unsaved
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td style={{ textAlign: "right", verticalAlign: "top" }}>
+                          <button
+                            className={dirty ? "btn btn-primary" : "btn btn-secondary"}
+                            onClick={() => saveStatus(a.id)}
+                            disabled={savingId !== null && savingId !== a.id}
+                            style={{
+                              opacity: savingId === a.id ? 0.7 : 1,
+                            }}
+                          >
+                            {savingId === a.id ? "Saving..." : "Save"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
-
-function ErrorBox({ msg }: { msg: string }) {
-  return (
-    <div style={{ marginTop: 14, padding: 12, border: "1px solid #f5c2c7", background: "#f8d7da", borderRadius: 12 }}>
-      {msg}
-    </div>
-  );
-}
-
-function OkBox({ msg }: { msg: string }) {
-  return (
-    <div style={{ marginTop: 14, padding: 12, border: "1px solid #cfe2ff", background: "#e7f1ff", borderRadius: 12 }}>
-      {msg}
-    </div>
-  );
-}
-
-const cardStyle: React.CSSProperties = { border: "1px solid #ddd", borderRadius: 14, padding: 16 };
-const h2Style: React.CSSProperties = { fontSize: 18, fontWeight: 800, margin: 0 };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 10 };
-const buttonStyle: React.CSSProperties = { padding: "10px 14px", borderRadius: 12, border: "1px solid #ccc", background: "#f5f5f5", cursor: "pointer", fontWeight: 700 };
-const thStyle: React.CSSProperties = { textAlign: "left", borderBottom: "1px solid #ddd", padding: "10px 8px", fontWeight: 800 };
-const tdStyle: React.CSSProperties = { borderBottom: "1px solid #eee", padding: "10px 8px", verticalAlign: "top" };
