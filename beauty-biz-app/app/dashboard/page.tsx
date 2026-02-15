@@ -77,11 +77,16 @@ export default function DashboardPage() {
             desc="Use chatbot/CV to estimate product usage."
             onClick={() => router.push("/dashboard/usage")}
           />
-          <ActionCard
-            title="View report"
-            desc="Customers, revenue trends, popular services (chatbot summary)."
-            onClick={() => router.push("/dashboard/report")}
-          />
+            <ActionCard
+              title="View report"
+              desc="Customers, revenue trends, popular services (chatbot summary)."
+              onClick={() => router.push("/dashboard/report")}
+            />
+            <ActionCard
+  title="Insights Copilot"
+  desc="Interactive AI chat powered by your real metrics and appointment data."
+  onClick={() => router.push("/dashboard/insights")}
+/>
         </div>
       </div>
     </main>
