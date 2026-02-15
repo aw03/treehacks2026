@@ -1,26 +1,308 @@
-@import "tailwindcss";
+/* =========================
+   Twitter-like Dark Theme (Purple accent)
+   Drop into: app/globals.css
+   ========================= */
 
+/* ---- Theme tokens ---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Twitter-ish neutrals */
+  --bg: #000000;
+  --surface: #0b0f14;     /* page surface */
+  --panel: #0f141a;       /* card/panel */
+  --panel-2: #121823;     /* hover panel */
+  --border: #2f3336;      /* twitter border tone */
+
+  /* Text */
+  --text: #e7e9ea;
+  --muted: #71767b;
+
+  /* Accent (purple) */
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-soft: rgba(124, 58, 237, 0.18);
+
+  /* States */
+  --success: #00ba7c;
+  --danger: #f4212e;
+  --warning: #ffd400;
+  --info: #1d9bf0;
+
+  /* Layout */
+  --radius: 16px;
+  --radius-sm: 12px;
+
+  /* Focus ring */
+  --focus: 0 0 0 3px rgba(124, 58, 237, 0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ---- Base reset ---- */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+    Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Make native controls respect dark theme (helps date pickers etc.) */
+html {
+  color-scheme: dark;
+}
+
+/* ---- Layout helpers ---- */
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* A more “feed column” width like Twitter */
+.container-narrow {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* Optional background gradient glow */
+.page-bg {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 700px at 20% -10%, rgba(124, 58, 237, 0.16), transparent 55%),
+    radial-gradient(900px 500px at 90% 10%, rgba(124, 58, 237, 0.10), transparent 60%),
+    var(--bg);
+}
+
+/* ---- Typography ---- */
+h1 {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 18px;
+}
+
+.small {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ---- Links ---- */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Panels / cards (Twitter-like) ---- */
+.card,
+.panel {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+
+.card-tight {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+}
+
+/* “Row hover” like twitter list items */
+.row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.row:hover {
+  background: var(--panel-2);
+}
+
+/* ---- Buttons ---- */
+.btn,
+button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 999px; /* twitter pills */
+  padding: 12px 18px;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.04s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:active,
+button:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border);
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---- Inputs / selects / textarea ---- */
+input,
+select,
+textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #5f6368;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(124, 58, 237, 0.7);
+  box-shadow: var(--focus);
+}
+
+/* Date picker icon for webkit */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.85;
+}
+
+/* ---- Tables (appointments page vibe) ---- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+td {
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ---- Alerts / banners ---- */
+.alert {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  color: var(--text);
+}
+
+.alert-success {
+  border-color: rgba(0, 186, 124, 0.45);
+  background: rgba(0, 186, 124, 0.10);
+}
+.alert-danger {
+  border-color: rgba(244, 33, 46, 0.45);
+  background: rgba(244, 33, 46, 0.10);
+}
+.alert-info {
+  border-color: rgba(29, 155, 240, 0.45);
+  background: rgba(29, 155, 240, 0.10);
+}
+.alert-accent {
+  border-color: rgba(124, 58, 237, 0.55);
+  background: var(--accent-soft);
+}
+
+/* ---- Lists ---- */
+ul {
+  margin-top: 12px;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* ---- Utility spacing ---- */
+.stack-16 > * + * { margin-top: 16px; }
+.stack-24 > * + * { margin-top: 24px; }
+.stack-32 > * + * { margin-top: 32px; }
+
+/* ---- Nice selection ---- */
+::selection {
+  background: rgba(124, 58, 237, 0.35);
+}
+
+/* ---- Optional: scrollbars (webkit) ---- */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
