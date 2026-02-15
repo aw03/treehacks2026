@@ -28,10 +28,11 @@ model Business {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clients      Client[]
-  services     Service[]
-  appointments Appointment[]
-  supplies     SupplyItem[]
+  clients          Client[]
+  services         Service[]
+  appointments     Appointment[]
+  supplies         SupplyItem[]
+  serviceInstances ServiceInstance[]
 }
 
 model Client {
@@ -47,16 +48,16 @@ model Client {
   business   Business @relation(fields: [businessId], references: [id])
 
   appointments Appointment[]
-
-  @@index([businessId])
   // Optional uniqueness (only if you want)
   // @@unique([businessId, phone])
   // @@unique([businessId, email])
+
+  @@index([businessId])
 }
 
 model Service {
   id          String   @id @default(uuid())
-  name        String
+  name        String  
   price       Decimal  @db.Decimal(10, 2)
   durationMin Int
   createdAt   DateTime @default(now())
@@ -65,19 +66,20 @@ model Service {
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
 
-  appointments Appointment[]
+  appointments     Appointment[]
+  serviceInstances ServiceInstance[]
 
   @@index([businessId])
 }
 
 model Appointment {
-  id          String            @id @default(uuid())
-  startTime   DateTime
-  endTime     DateTime
-  status      AppointmentStatus @default(SCHEDULED)
-  notes       String?
+  id             String            @id @default(uuid())
+  startTime      DateTime
+  endTime        DateTime
+  status         AppointmentStatus @default(SCHEDULED)
+  notes          String?
   // Keeps historical accuracy if service price changes:
-  priceAtBooking Decimal? @db.Decimal(10, 2)
+  priceAtBooking Decimal?          @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,8 +90,9 @@ model Appointment {
   clientId String
   client   Client @relation(fields: [clientId], references: [id])
 
-  serviceId String
-  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId       String
+  service         Service          @relation(fields: [serviceId], references: [id])
+  serviceInstance ServiceInstance?
 
   @@index([businessId, startTime])
   @@index([clientId])
@@ -99,7 +102,7 @@ model Appointment {
 model SupplyItem {
   id          String   @id @default(uuid())
   name        String
-  unit        String?  // e.g., "ml", "oz", "pieces"
+  unit        String? // e.g., "ml", "oz", "pieces"
   quantity    Decimal  @db.Decimal(10, 2)
   reorderAt   Decimal? @db.Decimal(10, 2)
   costPerUnit Decimal? @db.Decimal(10, 2)
@@ -107,8 +110,65 @@ model SupplyItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  businessId                  String
+  business                    Business                     @relation(fields: [businessId], references: [id])
+  serviceInstanceSupplyUsages ServiceInstanceSupplyUsage[]
+
+  @@index([businessId])
+}
+
+enum ServiceInstanceSource {
+  APPOINTMENT
+  WALK_IN
+}
+
+model ServiceInstance {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  finalizedAt DateTime?
+
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
 
-  @@index([businessId])
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  // If created from an appointment
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+
+  source ServiceInstanceSource @default(APPOINTMENT)
+
+  // Historical fields you want to log
+  actualDurationMin Int?
+  notes             String?
+
+  // Optional: store derived metrics at time of completion
+  // so later edits to service price don’t change history
+  priceAtCompletion Decimal? @db.Decimal(10, 2)
+
+  supplyUsages ServiceInstanceSupplyUsage[]
+}
+
+model ServiceInstanceSupplyUsage {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  instanceId String
+  instance   ServiceInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  supplyId String
+  supply   SupplyItem @relation(fields: [supplyId], references: [id])
+
+  quantityUsed Decimal @db.Decimal(10, 2)
+  unit         String? // optional snapshot if you want; supply has unit too
+
+  // Optional: store how you got the number
+  method   String? // "manual" | "llm" | "cv"
+  rawInput String? // text entered or metadata about image inference
+
+  @@index([instanceId])
+  @@index([supplyId])
 }
