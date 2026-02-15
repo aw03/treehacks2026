@@ -1,7 +1,7 @@
 // app/api/appointments/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma, AppointmentStatus } from "@prisma/client";
+import { AppointmentStatus } from "@prisma/client";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
